@@ -361,6 +361,7 @@ func NewController(
 		c.domainSuffix,
 		c,
 		inputs.Services,
+		inputs.ConfigMaps,
 		opts,
 	)
 
