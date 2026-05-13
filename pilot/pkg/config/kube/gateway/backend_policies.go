@@ -131,6 +131,7 @@ func DestinationRuleCollection(
 	domainSuffix string,
 	c *Controller,
 	services krt.Collection[*v1.Service],
+	configMaps krt.Collection[*v1.ConfigMap],
 	opts krt.OptionsBuilder,
 ) krt.Collection[config.Config] {
 	trafficPolicyStatus, backendTrafficPolicies := BackendTrafficPolicyCollection(trafficPolicies, references, domainSuffix, opts)
@@ -140,7 +141,7 @@ func DestinationRuleCollection(
 	// Gateway API community if having the Gateway as an ancestor ref is required or not; we would prefer it to not be if possible.
 	// Until conformance requires it, for now we skip it.
 	ancestorCollection := ancestors.AsCollection(append(opts.WithName("AncestorBackend"), TypedNamespacedNameIndexCollectionFunc)...)
-	tlsPolicyStatus, backendTLSPolicies := BackendTLSPolicyCollection(tlsPolicies, ancestorCollection, references, domainSuffix, opts)
+	tlsPolicyStatus, backendTLSPolicies := BackendTLSPolicyCollection(tlsPolicies, ancestorCollection, references, domainSuffix, configMaps, opts)
 	status.RegisterStatus(c.status, tlsPolicyStatus, GetStatus, c.tagWatcher.AccessUnprotected())
 
 	// We need to merge these by hostname into a single DR
@@ -285,6 +286,7 @@ func BackendTLSPolicyCollection(
 	ancestors krt.IndexCollection[TypedNamespacedName, AncestorBackend],
 	references *gatewaycommon.ReferenceSet,
 	domainSuffix string,
+	configMaps krt.Collection[*v1.ConfigMap],
 	opts krt.OptionsBuilder,
 ) (krt.StatusCollection[*gw.BackendTLSPolicy, gw.PolicyStatus], krt.Collection[BackendPolicy]) {
 	btlsTargetIdx := krt.NewIndex(tlsPolicies, "btls-targets", func(o *gw.BackendTLSPolicy) []string {
@@ -296,6 +298,10 @@ func BackendTLSPolicyCollection(
 		*gw.PolicyStatus,
 		[]BackendPolicy,
 	) {
+		// Block until ConfigMaps are synced to avoid a startup race where
+		// CA certificate references fail to resolve because the ConfigMap
+		// collection has not yet completed its initial sync.
+		configMaps.WaitUntilSynced(opts.Stop())
 		status := i.Status.DeepCopy()
 		res := make([]BackendPolicy, 0, len(i.Spec.TargetRefs))
 
