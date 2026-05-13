@@ -301,7 +301,7 @@ func filterAuthorizedResources(resources []SecretResource, proxy *model.Proxy, s
 				deniedResources = append(deniedResources, r.Name)
 			}
 		case credentials.InvalidSecretType:
-			// Do nothing. We return nothing, and logs for why an invalid resource was generated are handled elsewhere.
+			log.Warnf("proxy %s requested invalid certificate resource %s: CA certificate reference could not be resolved, TLS connections may fail", proxy.ID, r.ResourceName)
 		default:
 			// Should never happen
 			log.Warnf("unknown credential type %q", r.Type())
